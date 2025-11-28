@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>VB Balancer - Telegram</title>
+  
+  <!-- Telegram Web App SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  
+  <style>
+    :root {
+      --tg-theme-bg-color: #ffffff;
+      --tg-theme-text-color: #000000;
+      --tg-theme-hint-color: #999999;
+      --tg-theme-link-color: #2678b6;
+      --tg-theme-button-color: #3b82f6;
+      --tg-theme-button-text-color: #ffffff;
+      --tg-theme-secondary-bg-color: #f4f4f5;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--tg-theme-bg-color);
+      color: var(--tg-theme-text-color);
+      min-height: 100vh;
+      padding: 12px;
+      padding-bottom: 100px;
+    }
+    
+    .header {
+      text-align: center;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    
+    .header-icon { font-size: 48px; }
+    .header h1 { font-size: 20px; font-weight: 700; margin: 8px 0 4px; }
+    .header p { font-size: 13px; color: var(--tg-theme-hint-color); }
+    
+    .tabs {
+      display: flex;
+      background: var(--tg-theme-secondary-bg-color);
+      border-radius: 12px;
+      padding: 4px;
+      margin-bottom: 16px;
+    }
+    
+    .tab {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .tab.active {
+      background: var(--tg-theme-button-color);
+      color: var(--tg-theme-button-text-color);
+    }
+    
+    .section { display: none; }
+    .section.active { display: block; }
+    
+    .section-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .form-group { margin-bottom: 12px; }
+    
+    .form-label {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      display: block;
+      color: var(--tg-theme-hint-color);
+    }
+    
+    .form-input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--tg-theme-secondary-bg-color);
+      border-radius: 10px;
+      font-size: 16px;
+      background: var(--tg-theme-secondary-bg-color);
+      color: var(--tg-theme-text-color);
+    }
+    
+    .form-input:focus {
+      outline: none;
+      border-color: var(--tg-theme-button-color);
+    }
+    
+    .skills-list {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin: 12px 0;
+    }
+    
+    .skill-item {
+      background: var(--tg-theme-secondary-bg-color);
+      padding: 10px;
+      border-radius: 10px;
+    }
+    
+    .skill-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+    
+    .skill-name { font-weight: 600; text-transform: capitalize; }
+    .skill-value { font-weight: 700; color: var(--tg-theme-button-color); }
+    
+    input[type="range"] {
+      width: 100%;
+      height: 4px;
+      -webkit-appearance: none;
+      background: #ddd;
+      border-radius: 2px;
+    }
+    
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      background: var(--tg-theme-button-color);
+      border-radius: 50%;
+    }
+    
+    .player-card {
+      background: var(--tg-theme-secondary-bg-color);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    
+    .player-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    .player-name { font-weight: 700; font-size: 15px; }
+    
+    .player-role {
+      background: var(--tg-theme-button-color);
+      color: white;
+      padding: 3px 8px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    
+    .player-score {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--tg-theme-button-color);
+    }
+    
+    .player-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-top: 8px;
+    }
+    
+    .stat { text-align: center; }
+    .stat-value { font-size: 14px; font-weight: 700; }
+    .stat-label { font-size: 10px; color: var(--tg-theme-hint-color); }
+    
+    .player-delete { margin-top: 10px; text-align: right; }
+    
+    .delete-btn {
+      background: #ef4444;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    
+    .team-card {
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    
+    .team-header {
+      padding: 12px;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .team-1 .team-header { background: linear-gradient(135deg, #3b82f6, #06b6d4); }
+    .team-2 .team-header { background: linear-gradient(135deg, #8b5cf6, #ec4899); }
+    .team-3 .team-header { background: linear-gradient(135deg, #10b981, #14b8a6); }
+    .team-4 .team-header { background: linear-gradient(135deg, #f97316, #fbbf24); }
+    
+    .team-name { font-size: 16px; font-weight: 700; }
+    .team-count { font-size: 12px; opacity: 0.9; }
+    .team-avg { font-size: 24px; font-weight: 800; }
+    
+    .team-roster {
+      background: var(--tg-theme-secondary-bg-color);
+      padding: 10px;
+    }
+    
+    .roster-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px;
+      background: var(--tg-theme-bg-color);
+      border-radius: 8px;
+      margin-bottom: 6px;
+    }
+    
+    .roster-name { font-weight: 600; }
+    .roster-score { font-weight: 700; color: var(--tg-theme-button-color); }
+    
+    .balance-controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    
+    .balance-controls select {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      background: var(--tg-theme-secondary-bg-color);
+      font-size: 14px;
+      color: var(--tg-theme-text-color);
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+    
+    .btn-primary {
+      background: var(--tg-theme-button-color);
+      color: var(--tg-theme-button-text-color);
+    }
+    
+    .btn-success {
+      background: #10b981;
+      color: white;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--tg-theme-hint-color);
+    }
+    
+    .empty-icon { font-size: 48px; margin-bottom: 12px; }
+    
+    .main-button-spacer { height: 20px; }
+    
+    .share-section {
+      margin-top: 20px;
+      padding: 16px;
+      background: var(--tg-theme-secondary-bg-color);
+      border-radius: 12px;
+      text-align: center;
+    }
+    
+    .share-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    
+    .share-text {
+      font-size: 12px;
+      color: var(--tg-theme-hint-color);
+      margin-bottom: 12px;
+    }
+    
+    .btn-share {
+      background: #0088cc;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="header-icon">🏐</div>
+    <h1>VB Team Balancer</h1>
+    <p>Create fair volleyball teams instantly!</p>
+  </div>
+  
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('players')">👥 Players</div>
+    <div class="tab" onclick="showTab('teams')">⚖️ Teams</div>
+  </div>
+  
+  <!-- Players Tab -->
+  <div id="playersTab" class="section active">
+    <div class="section-title">➕ Add Player</div>
+    
+    <div class="form-group">
+      <label class="form-label">Name</label>
+      <input type="text" id="playerName" class="form-input" placeholder="Enter player name">
+    </div>
+    
+    <div class="form-group">
+      <label class="form-label">Position</label>
+      <select id="playerRole" class="form-input">
+        <option value="OH">OH - Outside Hitter</option>
+        <option value="OPP">OPP - Opposite</option>
+        <option value="MB">MB - Middle Blocker</option>
+        <option value="S">S - Setter</option>
+        <option value="L">L - Libero</option>
+      </select>
+    </div>
+    
+    <div class="form-label">Skills (drag to adjust)</div>
+    <div class="skills-list" id="skillsInput"></div>
+    
+    <button class="btn btn-success" onclick="addPlayer()">➕ Add Player</button>
+    
+    <div class="section-title" style="margin-top: 24px;">👥 Players (<span id="playerCount">0</span>)</div>
+    <div id="playersList"></div>
+    
+    <div class="share-section">
+      <div class="share-title">📤 Share with Team</div>
+      <div class="share-text">Invite your teammates to add their skills!</div>
+      <button class="btn-share" onclick="shareBot()">Share Bot Link</button>
+    </div>
+  </div>
+  
+  <!-- Teams Tab -->
+  <div id="teamsTab" class="section">
+    <div class="section-title">⚖️ Balance Settings</div>
+    
+    <div class="balance-controls">
+      <select id="strategy">
+        <option value="variance">⚖️ Balanced</option>
+        <option value="greedy">⚡ Quick</option>
+        <option value="snake">🐍 Draft</option>
+      </select>
+      <select id="numTeams">
+        <option value="2">2 Teams</option>
+        <option value="3">3 Teams</option>
+        <option value="4">4 Teams</option>
+      </select>
+    </div>
+    
+    <button class="btn btn-primary" onclick="balanceTeams()">🎯 Create Fair Teams!</button>
+    
+    <div style="margin-top: 20px;" id="teamsList"></div>
+    
+    <div class="share-section" id="shareResults" style="display: none;">
+      <div class="share-title">📢 Share Results</div>
+      <div class="share-text">Send team assignments to your group!</div>
+      <button class="btn-share" onclick="shareResults()">Share Teams</button>
+    </div>
+  </div>
+  
+  <div class="main-button-spacer"></div>
+  
+  <script>
+    // Telegram WebApp
+    const tg = window.Telegram?.WebApp;
+    
+    // Initialize Telegram
+    if (tg) {
+      tg.ready();
+      tg.expand();
+      
+      // Apply Telegram theme colors
+      const params = tg.themeParams;
+      if (params.bg_color) document.documentElement.style.setProperty('--tg-theme-bg-color', params.bg_color);
+      if (params.text_color) document.documentElement.style.setProperty('--tg-theme-text-color', params.text_color);
+      if (params.hint_color) document.documentElement.style.setProperty('--tg-theme-hint-color', params.hint_color);
+      if (params.button_color) document.documentElement.style.setProperty('--tg-theme-button-color', params.button_color);
+      if (params.button_text_color) document.documentElement.style.setProperty('--tg-theme-button-text-color', params.button_text_color);
+      if (params.secondary_bg_color) document.documentElement.style.setProperty('--tg-theme-secondary-bg-color', params.secondary_bg_color);
+    }
+    
+    // Data
+    const SKILLS = ['serve', 'pass', 'set', 'attack', 'block', 'defense', 'speed', 'stamina'];
+    let players = [];
+    let teams = [];
+    let currentTab = 'players';
+    
+    // Load data from localStorage (persists between sessions)
+    function init() {
+      const saved = localStorage.getItem('vb:players');
+      if (saved) {
+        try { players = JSON.parse(saved); } catch(e) {}
+      }
+      
+      // Also try to load from Telegram Cloud Storage
+      if (tg?.CloudStorage) {
+        tg.CloudStorage.getItem('players', (err, value) => {
+          if (!err && value) {
+            try {
+              const cloudPlayers = JSON.parse(value);
+              if (cloudPlayers.length > players.length) {
+                players = cloudPlayers;
+                renderPlayers();
+              }
+            } catch(e) {}
+          }
+        });
+      }
+      
+      renderSkillInputs();
+      renderPlayers();
+    }
+    
+    // Save data
+    function saveData() {
+      localStorage.setItem('vb:players', JSON.stringify(players));
+      
+      // Also save to Telegram Cloud Storage (syncs across devices!)
+      if (tg?.CloudStorage) {
+        tg.CloudStorage.setItem('players', JSON.stringify(players));
+      }
+    }
+    
+    // Tabs
+    function showTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      
+      event.target.classList.add('active');
+      document.getElementById(tab + 'Tab').classList.add('active');
+    }
+    
+    // Skill Inputs
+    function renderSkillInputs() {
+      document.getElementById('skillsInput').innerHTML = SKILLS.map(skill => `
+        <div class="skill-item">
+          <div class="skill-header">
+            <span class="skill-name">${skill}</span>
+            <span class="skill-value" id="val_${skill}">5</span>
+          </div>
+          <input type="range" min="0" max="10" value="5" id="skill_${skill}"
+            oninput="document.getElementById('val_${skill}').textContent = this.value">
+        </div>
+      `).join('');
+    }
+    
+    // Add Player
+    function addPlayer() {
+      const nameInput = document.getElementById('playerName');
+      const name = nameInput.value.trim();
+      
+      if (!name) {
+        if (tg) tg.showAlert('Please enter a player name');
+        else alert('Please enter a player name');
+        return;
+      }
+      
+      const skills = {};
+      SKILLS.forEach(s => skills[s] = parseInt(document.getElementById(`skill_${s}`).value));
+      
+      const overall = (Object.values(skills).reduce((a, b) => a + b, 0) / SKILLS.length).toFixed(1);
+      
+      players.push({
+        id: 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+        name,
+        role: document.getElementById('playerRole').value,
+        skills,
+        overall
+      });
+      
+      saveData();
+      renderPlayers();
+      
+      // Reset form
+      nameInput.value = '';
+      SKILLS.forEach(s => {
+        document.getElementById(`skill_${s}`).value = 5;
+        document.getElementById(`val_${s}`).textContent = '5';
+      });
+      
+      // Haptic feedback
+      if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+      
+      // Show success
+      if (tg) tg.showAlert(`${name} added! 🏐`);
+    }
+    
+    // Delete Player
+    function deletePlayer(id) {
+      const doDelete = () => {
+        players = players.filter(p => p.id !== id);
+        saveData();
+        renderPlayers();
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('warning');
+      };
+      
+      if (tg) {
+        tg.showConfirm('Remove this player?', (ok) => { if (ok) doDelete(); });
+      } else {
+        if (confirm('Remove this player?')) doDelete();
+      }
+    }
+    
+    // Render Players
+    function renderPlayers() {
+      document.getElementById('playerCount').textContent = players.length;
+      const container = document.getElementById('playersList');
+      
+      if (players.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">🏐</div>
+            <p>No players yet.<br>Add your team members above!</p>
+          </div>
+        `;
+        return;
+      }
+      
+      // Sort by overall score
+      const sorted = [...players].sort((a, b) => parseFloat(b.overall) - parseFloat(a.overall));
+      
+      container.innerHTML = sorted.map(p => `
+        <div class="player-card">
+          <div class="player-header">
+            <div>
+              <span class="player-name">${escapeHtml(p.name)}</span>
+              <span class="player-role">${p.role}</span>
+            </div>
+            <span class="player-score">${p.overall}</span>
+          </div>
+          <div class="player-stats">
+            ${SKILLS.slice(0, 4).map(s => `
+              <div class="stat">
+                <div class="stat-value">${p.skills[s]}</div>
+                <div class="stat-label">${s.substr(0,3).toUpperCase()}</div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="player-stats">
+            ${SKILLS.slice(4).map(s => `
+              <div class="stat">
+                <div class="stat-value">${p.skills[s]}</div>
+                <div class="stat-label">${s.substr(0,3).toUpperCase()}</div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="player-delete">
+            <button class="delete-btn" onclick="deletePlayer('${p.id}')">🗑️ Remove</button>
+          </div>
+        </div>
+      `).join('');
+    }
+    
+    // Balance Teams
+    function balanceTeams() {
+      if (players.length < 2) {
+        if (tg) tg.showAlert('Need at least 2 players to create teams!');
+        else alert('Need at least 2 players!');
+        return;
+      }
+      
+      const numTeams = parseInt(document.getElementById('numTeams').value);
+      const strategy = document.getElementById('strategy').value;
+      
+      teams = Array.from({ length: numTeams }, (_, i) => ({ 
+        number: i + 1, 
+        players: [], 
+        total: 0 
+      }));
+      
+      const sorted = [...players].sort((a, b) => parseFloat(b.overall) - parseFloat(a.overall));
+      
+      if (strategy === 'snake') {
+        // Snake draft: 1-2-2-1-1-2...
+        let dir = 1, idx = 0;
+        sorted.forEach(p => {
+          teams[idx].players.push(p);
+          teams[idx].total += parseFloat(p.overall);
+          idx += dir;
+          if (idx >= numTeams || idx < 0) { 
+            dir *= -1; 
+            idx += dir; 
+          }
+        });
+      } else {
+        // Greedy: assign to team with lowest total
+        sorted.forEach(p => {
+          const minTeam = teams.reduce((m, t) => t.total < m.total ? t : m);
+          minTeam.players.push(p);
+          minTeam.total += parseFloat(p.overall);
+        });
+        
+        // Variance optimization
+        if (strategy === 'variance') {
+          for (let i = 0; i < 500; i++) {
+            const t1 = Math.floor(Math.random() * numTeams);
+            const t2 = Math.floor(Math.random() * numTeams);
+            if (t1 === t2 || !teams[t1].players.length || !teams[t2].players.length) continue;
+            
+            const p1 = Math.floor(Math.random() * teams[t1].players.length);
+            const p2 = Math.floor(Math.random() * teams[t2].players.length);
+            
+            const oldVar = calcVariance();
+            
+            // Swap
+            [teams[t1].players[p1], teams[t2].players[p2]] = [teams[t2].players[p2], teams[t1].players[p1]];
+            teams.forEach(t => t.total = t.players.reduce((s, p) => s + parseFloat(p.overall), 0));
+            
+            if (calcVariance() > oldVar) {
+              // Swap back
+              [teams[t1].players[p1], teams[t2].players[p2]] = [teams[t2].players[p2], teams[t1].players[p1]];
+              teams.forEach(t => t.total = t.players.reduce((s, p) => s + parseFloat(p.overall), 0));
+            }
+          }
+        }
+      }
+      
+      renderTeams();
+      document.getElementById('shareResults').style.display = 'block';
+      
+      if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+    }
+    
+    function calcVariance() {
+      const avgs = teams.map(t => t.players.length ? t.total / t.players.length : 0);
+      const mean = avgs.reduce((a, b) => a + b, 0) / avgs.length;
+      return avgs.reduce((s, a) => s + Math.pow(a - mean, 2), 0);
+    }
+    
+    // Render Teams
+    function renderTeams() {
+      const container = document.getElementById('teamsList');
+      
+      if (teams.length === 0 || teams[0].players.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">⚖️</div>
+            <p>Add players and click<br>"Create Fair Teams!"</p>
+          </div>
+        `;
+        return;
+      }
+      
+      container.innerHTML = teams.map((t, i) => {
+        const avg = t.players.length ? (t.total / t.players.length).toFixed(2) : '0.00';
+        return `
+          <div class="team-card team-${i + 1}">
+            <div class="team-header">
+              <div>
+                <div class="team-name">Team ${t.number}</div>
+                <div class="team-count">${t.players.length} players</div>
+              </div>
+              <div class="team-avg">${avg}</div>
+            </div>
+            <div class="team-roster">
+              ${t.players.map(p => `
+                <div class="roster-item">
+                  <span class="roster-name">${escapeHtml(p.name)} <small style="opacity:0.6">(${p.role})</small></span>
+                  <span class="roster-score">${p.overall}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+    
+    // Share functions
+    function shareBot() {
+      const botUsername = window.location.hostname.includes('github.io') 
+        ? 'your_bot_username' 
+        : 'vb_balancer_bot';
+      
+      const text = `🏐 Join our volleyball team balancer!\n\nAdd your skills and we'll create fair teams automatically.`;
+      
+      if (tg) {
+        tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/${botUsername}&text=${encodeURIComponent(text)}`);
+      } else {
+        alert('Share this link with your team:\nhttps://t.me/' + botUsername);
+      }
+    }
+    
+    function shareResults() {
+      if (teams.length === 0) return;
+      
+      let message = '🏐 *Volleyball Teams* 🏐\n\n';
+      
+      teams.forEach(t => {
+        const avg = t.players.length ? (t.total / t.players.length).toFixed(2) : '0';
+        message += `*Team ${t.number}* (Avg: ${avg})\n`;
+        t.players.forEach(p => {
+          message += `  • ${p.name} (${p.role}) - ${p.overall}\n`;
+        });
+        message += '\n';
+      });
+      
+      message += '_Created with VB Team Balancer_';
+      
+      if (tg) {
+        // Send to current chat
+        tg.sendData(JSON.stringify({ action: 'share_teams', teams }));
+        
+        // Or open share dialog
+        tg.openTelegramLink(`https://t.me/share/url?text=${encodeURIComponent(message)}`);
+      } else {
+        // Copy to clipboard
+        navigator.clipboard?.writeText(message.replace(/\*/g, '').replace(/_/g, ''));
+        alert('Team assignments copied to clipboard!');
+      }
+    }
+    
+    // Utility
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+    
+    // Initialize
+    init();
+  </script>
+</body>
+</html>
