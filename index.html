@@ -250,6 +250,101 @@
     .strategy-greedy { color: var(--warning); }
     .strategy-snake { color: var(--danger); }
     
+    /* Skill Weights Section */
+    .weights-section {
+      background: linear-gradient(135deg, #faf5ff, #f3e8ff);
+      border: 2px solid #e9d5ff;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .weights-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .weights-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #7c3aed;
+    }
+    .weights-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .weights-panel {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #e9d5ff;
+    }
+    .weights-description {
+      font-size: 13px;
+      color: var(--slate-600);
+      margin-bottom: 16px;
+    }
+    .weights-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .weight-item {
+      background: white;
+      border-radius: 8px;
+      padding: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .weight-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .weight-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--slate-700);
+      text-transform: capitalize;
+    }
+    .weight-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: #7c3aed;
+      min-width: 40px;
+      text-align: right;
+    }
+    .weight-slider {
+      width: 100%;
+      height: 8px;
+      -webkit-appearance: none;
+      background: linear-gradient(to right, #7c3aed 0%, #7c3aed var(--weight-value, 50%), #e2e8f0 var(--weight-value, 50%), #e2e8f0 100%);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .weight-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border: 3px solid #7c3aed;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .weights-presets {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .preset-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--slate-600);
+    }
+    
     /* Team Comparison Section */
     .comparison-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
     .comparison-chart { display: flex; align-items: center; justify-content: center; }
@@ -486,6 +581,30 @@
         </div>
       </div>
       <div class="section-content">
+        <!-- Skill Weights Section -->
+        <div class="weights-section">
+          <div class="weights-header">
+            <div class="weights-title">🎚️ Skill Weights</div>
+            <div class="weights-actions">
+              <button class="btn btn-outline btn-sm" onclick="toggleWeightsPanel()">
+                <span id="weightsToggleIcon">▶</span> Customize
+              </button>
+              <button class="btn btn-outline btn-sm" onclick="resetWeights()">↺ Reset</button>
+            </div>
+          </div>
+          <div class="weights-panel" id="weightsPanel" style="display: none;">
+            <p class="weights-description">Adjust how much each skill affects team balancing. Higher weight = more important.</p>
+            <div class="weights-grid" id="weightsGrid"></div>
+            <div class="weights-presets">
+              <span class="preset-label">Presets:</span>
+              <button class="btn btn-sm btn-outline" onclick="applyPreset('balanced')">⚖️ Balanced</button>
+              <button class="btn btn-sm btn-outline" onclick="applyPreset('offensive')">⚔️ Offensive</button>
+              <button class="btn btn-sm btn-outline" onclick="applyPreset('defensive')">🛡️ Defensive</button>
+              <button class="btn btn-sm btn-outline" onclick="applyPreset('setter')">🎯 Setter-Focus</button>
+            </div>
+          </div>
+        </div>
+        
         <div class="drag-info" id="dragInfo" style="display: none;">
           <div class="drag-info-icon">🎯</div>
           <div class="drag-info-text">
@@ -567,7 +686,10 @@
   <script>
     // Telegram WebApp Integration
     const tg = window.Telegram?.WebApp;
-    if (tg) { tg.ready(); tg.expand(); }
+    if (tg) { 
+      try { tg.ready(); } catch(e) {}
+      try { tg.expand(); } catch(e) {}
+    }
     
     // Constants
     const SKILLS = ['serve', 'pass', 'set', 'attack', 'block', 'defense', 'speed', 'stamina'];
@@ -578,9 +700,16 @@
       { bg: 'rgba(249,115,22,0.2)', border: 'rgb(249,115,22)', gradient: ['#f97316', '#fbbf24'] }
     ];
     
+    // Default skill weights
+    const DEFAULT_WEIGHTS = {
+      serve: 1.0, pass: 1.0, set: 1.0, attack: 1.0,
+      block: 1.0, defense: 1.0, speed: 1.0, stamina: 1.0
+    };
+    
     // State
     let players = [];
     let teams = [];
+    let skillWeights = { ...DEFAULT_WEIGHTS };
     let editingPlayerId = null;
     let sortField = 'score';
     let sortDirection = 'desc';
@@ -591,33 +720,59 @@
     
     // Initialize
     function init() {
-      loadData();
-      renderSkillInputs();
-      renderPlayers();
-      renderRanking();
+      try {
+        loadData();
+        renderSkillInputs();
+        renderWeightsGrid();
+        renderPlayers();
+        renderRanking();
+      } catch(e) {
+        console.error('Init error:', e);
+      }
     }
     
     // Data Persistence
     function loadData() {
+      // Load players
       const saved = localStorage.getItem('vb:players');
       if (saved) {
         try { 
           players = JSON.parse(saved).map(p => migratePlayer(p));
-        } catch(e) {}
+        } catch(e) {
+          console.error('Load error:', e);
+        }
       }
-      if (tg?.CloudStorage) {
-        tg.CloudStorage.getItem('players', (err, value) => {
-          if (!err && value) {
-            try {
-              let cloudPlayers = JSON.parse(value).map(p => migratePlayer(p));
-              if (cloudPlayers.length > players.length) {
-                players = cloudPlayers;
-                renderPlayers();
-                renderRanking();
-              }
-            } catch(e) {}
-          }
-        });
+      
+      // Load skill weights
+      const savedWeights = localStorage.getItem('vb:weights');
+      if (savedWeights) {
+        try {
+          const loaded = JSON.parse(savedWeights);
+          skillWeights = { ...DEFAULT_WEIGHTS, ...loaded };
+        } catch(e) {
+          skillWeights = { ...DEFAULT_WEIGHTS };
+        }
+      }
+      
+      // Try Telegram Cloud Storage (only if available and supported)
+      try {
+        if (tg && tg.CloudStorage && typeof tg.CloudStorage.getItem === 'function') {
+          tg.CloudStorage.getItem('players', (err, value) => {
+            if (!err && value) {
+              try {
+                let cloudPlayers = JSON.parse(value).map(p => migratePlayer(p));
+                if (cloudPlayers.length > players.length) {
+                  players = cloudPlayers;
+                  renderPlayers();
+                  renderRanking();
+                }
+              } catch(e) {}
+            }
+          });
+        }
+      } catch(e) {
+        // CloudStorage not available, ignore
+        console.log('Telegram CloudStorage not available');
       }
     }
     
@@ -635,20 +790,184 @@
     
     function calculateOverall(player) {
       const skills = player.skills || {};
-      const skillValues = SKILLS.map(s => skills[s] || 5);
-      const skillAvg = skillValues.reduce((a, b) => a + b, 0) / SKILLS.length;
+      
+      // Calculate weighted skill average
+      let weightedSum = 0;
+      let totalWeight = 0;
+      SKILLS.forEach(s => {
+        const skillValue = skills[s] || 5;
+        const weight = skillWeights[s] || 1.0;
+        weightedSum += skillValue * weight;
+        totalWeight += weight;
+      });
+      const skillAvg = totalWeight > 0 ? weightedSum / totalWeight : 5;
+      
+      // Physical attributes (unchanged - no weights applied)
       const height = player.height || 175;
       const age = player.age || 25;
       const experience = player.experience || 3;
       const heightScore = Math.min(10, Math.max(0, (height - 150) / 5));
       const ageScore = age >= 20 && age <= 35 ? 10 : (age < 20 ? age / 2 : Math.max(0, 10 - (age - 35) / 3));
       const expScore = Math.min(10, experience / 1.5);
+      
+      // Combine: 70% skills, 30% physical
       return ((skillAvg * 0.7) + ((heightScore + ageScore + expScore) / 3 * 0.3)).toFixed(2);
     }
     
     function saveData() {
       localStorage.setItem('vb:players', JSON.stringify(players));
-      if (tg?.CloudStorage) tg.CloudStorage.setItem('players', JSON.stringify(players));
+      localStorage.setItem('vb:weights', JSON.stringify(skillWeights));
+      // Try Telegram Cloud Storage (only if available)
+      try {
+        if (tg && tg.CloudStorage && typeof tg.CloudStorage.setItem === 'function') {
+          tg.CloudStorage.setItem('players', JSON.stringify(players));
+        }
+      } catch(e) {
+        // CloudStorage not available, ignore
+      }
+    }
+    
+    // ==================== SKILL WEIGHTS ====================
+    
+    function renderWeightsGrid() {
+      const container = document.getElementById('weightsGrid');
+      if (!container) return;
+      
+      container.innerHTML = SKILLS.map(skill => {
+        const weight = skillWeights[skill] || 1.0;
+        const percentage = (weight / 2) * 100;
+        return `
+          <div class="weight-item">
+            <div class="weight-header">
+              <span class="weight-name">${capitalize(skill)}</span>
+              <span class="weight-value" id="weightVal_${skill}">${weight.toFixed(1)}x</span>
+            </div>
+            <input type="range" class="weight-slider" 
+              min="0" max="2" step="0.1" value="${weight}"
+              id="weight_${skill}"
+              style="--weight-value: ${percentage}%"
+              oninput="updateWeight('${skill}', this.value)">
+          </div>
+        `;
+      }).join('');
+    }
+    
+    function updateWeight(skill, value) {
+      const weight = parseFloat(value);
+      skillWeights[skill] = weight;
+      
+      // Update display
+      const valueEl = document.getElementById(`weightVal_${skill}`);
+      const sliderEl = document.getElementById(`weight_${skill}`);
+      if (valueEl) valueEl.textContent = weight.toFixed(1) + 'x';
+      if (sliderEl) sliderEl.style.setProperty('--weight-value', (weight / 2 * 100) + '%');
+      
+      // Recalculate all player scores
+      players.forEach(p => {
+        p.overall = calculateOverall(p);
+      });
+      
+      // Save and update UI
+      saveData();
+      renderPlayers();
+      renderRanking();
+      
+      // If teams are already created, recalculate
+      if (teams.length > 0 && teams[0].players.length > 0) {
+        teams.forEach(t => {
+          t.players.forEach(p => {
+            const original = players.find(op => op.id === p.id);
+            if (original) p.overall = original.overall;
+          });
+          t.total = t.players.reduce((s, p) => s + parseFloat(p.overall), 0);
+        });
+        renderTeams();
+        renderComparison();
+      }
+    }
+    
+    function toggleWeightsPanel() {
+      const panel = document.getElementById('weightsPanel');
+      const icon = document.getElementById('weightsToggleIcon');
+      if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        icon.textContent = '▼';
+      } else {
+        panel.style.display = 'none';
+        icon.textContent = '▶';
+      }
+    }
+    
+    function resetWeights() {
+      skillWeights = { ...DEFAULT_WEIGHTS };
+      renderWeightsGrid();
+      
+      // Recalculate all scores
+      players.forEach(p => {
+        p.overall = calculateOverall(p);
+      });
+      
+      saveData();
+      renderPlayers();
+      renderRanking();
+      
+      if (teams.length > 0 && teams[0].players.length > 0) {
+        teams.forEach(t => {
+          t.players.forEach(p => {
+            const original = players.find(op => op.id === p.id);
+            if (original) p.overall = original.overall;
+          });
+          t.total = t.players.reduce((s, p) => s + parseFloat(p.overall), 0);
+        });
+        renderTeams();
+        renderComparison();
+      }
+      
+      showToast('Weights reset to default', 'success');
+    }
+    
+    function applyPreset(preset) {
+      const presets = {
+        balanced: { serve: 1.0, pass: 1.0, set: 1.0, attack: 1.0, block: 1.0, defense: 1.0, speed: 1.0, stamina: 1.0 },
+        offensive: { serve: 1.2, pass: 0.8, set: 1.0, attack: 1.5, block: 0.8, defense: 0.7, speed: 1.3, stamina: 0.9 },
+        defensive: { serve: 0.8, pass: 1.4, set: 1.0, attack: 0.8, block: 1.3, defense: 1.5, speed: 1.0, stamina: 1.2 },
+        setter: { serve: 0.9, pass: 1.3, set: 1.8, attack: 0.6, block: 0.7, defense: 1.2, speed: 1.2, stamina: 1.0 }
+      };
+      
+      const presetNames = {
+        balanced: '⚖️ Balanced',
+        offensive: '⚔️ Offensive',
+        defensive: '🛡️ Defensive',
+        setter: '🎯 Setter-Focus'
+      };
+      
+      if (presets[preset]) {
+        skillWeights = { ...presets[preset] };
+        renderWeightsGrid();
+        
+        // Recalculate all scores
+        players.forEach(p => {
+          p.overall = calculateOverall(p);
+        });
+        
+        saveData();
+        renderPlayers();
+        renderRanking();
+        
+        if (teams.length > 0 && teams[0].players.length > 0) {
+          teams.forEach(t => {
+            t.players.forEach(p => {
+              const original = players.find(op => op.id === p.id);
+              if (original) p.overall = original.overall;
+            });
+            t.total = t.players.reduce((s, p) => s + parseFloat(p.overall), 0);
+          });
+          renderTeams();
+          renderComparison();
+        }
+        
+        showToast(`Applied ${presetNames[preset]} preset`, 'success');
+      }
     }
     
     // Render Skill Inputs
@@ -740,7 +1059,7 @@
       renderPlayers();
       renderRanking();
       resetForm();
-      if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+      try { if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); } catch(e) {}
     }
     
     function editPlayer(id) {
@@ -776,8 +1095,12 @@
         renderRanking();
         showToast('Player removed', 'success');
       };
-      if (tg) tg.showConfirm('Remove this player?', (ok) => { if (ok) doDelete(); });
-      else if (confirm('Remove this player?')) doDelete();
+      try {
+        if (tg && tg.showConfirm) tg.showConfirm('Remove this player?', (ok) => { if (ok) doDelete(); });
+        else if (confirm('Remove this player?')) doDelete();
+      } catch(e) {
+        if (confirm('Remove this player?')) doDelete();
+      }
     }
     
     function toggleAvailability(id) {
@@ -1236,7 +1559,12 @@
     
     // Import/Export
     function exportData() {
-      const data = { players, exportDate: new Date().toISOString(), version: '2.2' };
+      const data = { 
+        players, 
+        weights: skillWeights,
+        exportDate: new Date().toISOString(), 
+        version: '2.3' 
+      };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1257,6 +1585,13 @@
           let imported = data.players || (Array.isArray(data) ? data : []);
           if (imported.length > 0) {
             players = imported.map(p => migratePlayer(p));
+            
+            // Import weights if present
+            if (data.weights) {
+              skillWeights = { ...DEFAULT_WEIGHTS, ...data.weights };
+              renderWeightsGrid();
+            }
+            
             saveData();
             renderPlayers();
             renderRanking();
