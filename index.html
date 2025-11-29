@@ -231,15 +231,23 @@
     .roster-player:active { cursor: grabbing; }
     .team-roster {
       display: flex; flex-direction: column; gap: 6px;
-      min-height: 60px;
+      min-height: 80px;
       padding: 8px;
       border-radius: 8px;
       border: 2px dashed transparent;
       transition: all 0.2s;
+      background: #f8fafc;
     }
     .team-roster.drag-over {
       border-color: var(--primary);
-      background: rgba(59, 130, 246, 0.1);
+      background: rgba(59, 130, 246, 0.15);
+    }
+    .empty-roster-message {
+      color: #94a3b8;
+      text-align: center;
+      padding: 20px;
+      font-size: 13px;
+      font-style: italic;
     }
     .roster-player-info { display: flex; align-items: center; gap: 8px; }
     .drag-handle { color: var(--slate-400); font-size: 14px; cursor: grab; }
@@ -1283,7 +1291,16 @@
       const grid = document.getElementById('teamsGrid');
       const dragInfo = document.getElementById('dragInfo');
       
-      if (teams.length === 0 || teams[0].players.length === 0) {
+      // Show empty state only if no teams at all
+      if (teams.length === 0) {
+        grid.innerHTML = `<div class="empty-state" style="grid-column: 1/-1;"><div class="empty-icon">⚖️</div><p class="empty-text">Add players and click "Distribute" to create fair teams</p></div>`;
+        dragInfo.style.display = 'none';
+        return;
+      }
+      
+      // Check if all teams are empty
+      const totalPlayers = teams.reduce((sum, t) => sum + t.players.length, 0);
+      if (totalPlayers === 0) {
         grid.innerHTML = `<div class="empty-state" style="grid-column: 1/-1;"><div class="empty-icon">⚖️</div><p class="empty-text">Add players and click "Distribute" to create fair teams</p></div>`;
         dragInfo.style.display = 'none';
         return;
@@ -1293,6 +1310,23 @@
       
       grid.innerHTML = teams.map((team, idx) => {
         const avg = team.players.length ? (team.total / team.players.length).toFixed(2) : '0.00';
+        const playersHtml = team.players.length > 0 
+          ? team.players.map(p => `
+              <div class="roster-player" draggable="true" data-player-id="${p.id}"
+                ondragstart="handleDragStart(event, '${p.id}', ${idx})"
+                ondragend="handleDragEnd(event)">
+                <div class="roster-player-info">
+                  <span class="drag-handle">⋮⋮</span>
+                  <div>
+                    <span class="roster-player-name">${escapeHtml(p.name)}</span>
+                    <span class="roster-player-role">${p.role}</span>
+                  </div>
+                </div>
+                <span class="roster-player-score">${p.overall}</span>
+              </div>
+            `).join('')
+          : `<div class="empty-roster-message">Drop players here</div>`;
+        
         return `
           <div class="team-card team-${idx + 1}" data-team="${idx}">
             <div class="team-header">
@@ -1314,25 +1348,11 @@
                   <span>ROSTER</span>
                   <span class="roster-count">${team.players.length}</span>
                 </div>
-                <div class="team-roster" data-team="${idx}" 
+                <div class="team-roster" id="roster-${idx}" data-team="${idx}" 
                   ondragover="handleDragOver(event)" 
                   ondragleave="handleDragLeave(event)"
-                  ondrop="handleDrop(event, ${idx})"
-                  style="min-height: 60px;">>
-                  ${team.players.map(p => `
-                    <div class="roster-player" draggable="true" data-player-id="${p.id}"
-                      ondragstart="handleDragStart(event, '${p.id}', ${idx})"
-                      ondragend="handleDragEnd(event)">
-                      <div class="roster-player-info">
-                        <span class="drag-handle">⋮⋮</span>
-                        <div>
-                          <span class="roster-player-name">${escapeHtml(p.name)}</span>
-                          <span class="roster-player-role">${p.role}</span>
-                        </div>
-                      </div>
-                      <span class="roster-player-score">${p.overall}</span>
-                    </div>
-                  `).join('')}
+                  ondrop="handleDrop(event, ${idx})">
+                  ${playersHtml}
                 </div>
               </div>
             </div>
