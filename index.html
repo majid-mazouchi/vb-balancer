@@ -218,9 +218,29 @@
       display: flex; justify-content: space-between; align-items: center;
       padding: 8px 10px; background: var(--slate-50); border-radius: 8px;
       cursor: grab; transition: all 0.2s; border: 2px solid transparent;
+      user-select: none;
     }
     .roster-player:hover { background: var(--slate-100); border-color: var(--primary); }
-    .roster-player.dragging { opacity: 0.5; transform: scale(0.95); }
+    .roster-player.dragging { 
+      opacity: 0.4; 
+      transform: scale(0.95); 
+      border-color: var(--primary);
+      background: var(--primary);
+      cursor: grabbing;
+    }
+    .roster-player:active { cursor: grabbing; }
+    .team-roster {
+      display: flex; flex-direction: column; gap: 6px;
+      min-height: 60px;
+      padding: 8px;
+      border-radius: 8px;
+      border: 2px dashed transparent;
+      transition: all 0.2s;
+    }
+    .team-roster.drag-over {
+      border-color: var(--primary);
+      background: rgba(59, 130, 246, 0.1);
+    }
     .roster-player-info { display: flex; align-items: center; gap: 8px; }
     .drag-handle { color: var(--slate-400); font-size: 14px; cursor: grab; }
     .roster-player-name { font-weight: 600; font-size: 13px; }
@@ -1296,7 +1316,9 @@
                 </div>
                 <div class="team-roster" data-team="${idx}" 
                   ondragover="handleDragOver(event)" 
-                  ondrop="handleDrop(event, ${idx})">
+                  ondragleave="handleDragLeave(event)"
+                  ondrop="handleDrop(event, ${idx})"
+                  style="min-height: 60px;">>
                   ${team.players.map(p => `
                     <div class="roster-player" draggable="true" data-player-id="${p.id}"
                       ondragstart="handleDragStart(event, '${p.id}', ${idx})"
@@ -1330,32 +1352,69 @@
       draggedFromTeam = teamIdx;
       event.target.classList.add('dragging');
       event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', playerId); // Required for Firefox
     }
     
     function handleDragEnd(event) {
       event.target.classList.remove('dragging');
-      draggedPlayer = null;
-      draggedFromTeam = null;
+      // Remove all drag-over highlights
+      document.querySelectorAll('.team-roster').forEach(el => el.classList.remove('drag-over'));
+      // Reset state after a small delay to ensure drop completes
+      setTimeout(() => {
+        draggedPlayer = null;
+        draggedFromTeam = null;
+      }, 50);
     }
     
     function handleDragOver(event) {
       event.preventDefault();
       event.dataTransfer.dropEffect = 'move';
+      // Highlight the drop zone
+      const roster = event.currentTarget;
+      if (roster && !roster.classList.contains('drag-over')) {
+        roster.classList.add('drag-over');
+      }
+    }
+    
+    function handleDragLeave(event) {
+      const roster = event.currentTarget;
+      if (roster) roster.classList.remove('drag-over');
     }
     
     function handleDrop(event, targetTeamIdx) {
       event.preventDefault();
-      if (draggedPlayer === null || draggedFromTeam === null || draggedFromTeam === targetTeamIdx) return;
+      
+      // Reset drop zone highlight
+      document.querySelectorAll('.team-roster').forEach(el => el.classList.remove('drag-over'));
+      
+      // Get player ID from dataTransfer as backup
+      const playerIdFromData = event.dataTransfer.getData('text/plain');
+      const playerId = draggedPlayer || playerIdFromData;
+      const fromTeam = draggedFromTeam;
+      
+      if (!playerId || fromTeam === null || fromTeam === undefined || fromTeam === targetTeamIdx) {
+        draggedPlayer = null;
+        draggedFromTeam = null;
+        return;
+      }
       
       // Find and move player
-      const playerIdx = teams[draggedFromTeam].players.findIndex(p => p.id === draggedPlayer);
-      if (playerIdx === -1) return;
+      const playerIdx = teams[fromTeam].players.findIndex(p => p.id === playerId);
+      if (playerIdx === -1) {
+        draggedPlayer = null;
+        draggedFromTeam = null;
+        return;
+      }
       
-      const player = teams[draggedFromTeam].players.splice(playerIdx, 1)[0];
+      const player = teams[fromTeam].players.splice(playerIdx, 1)[0];
       teams[targetTeamIdx].players.push(player);
       
       // Recalculate totals
       teams.forEach(t => t.total = t.players.reduce((s, p) => s + parseFloat(p.overall), 0));
+      
+      // Reset drag state before re-render
+      draggedPlayer = null;
+      draggedFromTeam = null;
       
       renderTeams();
       renderComparison();
@@ -1537,16 +1596,276 @@
     }
     
     function printReport() {
-      const content = document.getElementById('reportContent').innerHTML;
+      const totalPlayers = teams.reduce((s, t) => s + t.players.length, 0);
+      const avgScore = teams.reduce((s, t) => s + t.total, 0) / totalPlayers;
+      const variance = calcVariance();
+      const balanceScore = Math.max(0, 100 - variance * 50).toFixed(0);
+      
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Volleyball Team Report</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+    .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 3px solid #8b5cf6; }
+    .logo { font-size: 48px; }
+    .title { font-size: 24px; font-weight: bold; margin: 10px 0; }
+    .subtitle { color: #666; }
+    .summary { display: flex; justify-content: space-around; margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 8px; }
+    .summary-item { text-align: center; }
+    .summary-value { font-size: 28px; font-weight: bold; color: #8b5cf6; }
+    .summary-label { font-size: 12px; color: #666; }
+    .section-title { font-size: 18px; font-weight: bold; margin: 20px 0 10px; padding-bottom: 5px; border-bottom: 2px solid #8b5cf6; }
+    .team { margin-bottom: 20px; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
+    .team-header { padding: 12px 16px; color: white; display: flex; justify-content: space-between; }
+    .team-1 .team-header { background: #3b82f6; }
+    .team-2 .team-header { background: #8b5cf6; }
+    .team-3 .team-header { background: #10b981; }
+    .team-4 .team-header { background: #f97316; }
+    .players { padding: 12px; display: flex; flex-wrap: wrap; gap: 10px; }
+    .player { background: #f9f9f9; padding: 8px 12px; border-radius: 6px; text-align: center; min-width: 100px; }
+    .player-name { font-weight: bold; }
+    .player-score { color: #8b5cf6; font-weight: bold; }
+    .footer { text-align: center; margin-top: 30px; color: #999; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">🏐</div>
+    <div class="title">Volleyball Team Report</div>
+    <div class="subtitle">${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+  </div>
+  
+  <div class="summary">
+    <div class="summary-item"><div class="summary-value">${teams.length}</div><div class="summary-label">TEAMS</div></div>
+    <div class="summary-item"><div class="summary-value">${totalPlayers}</div><div class="summary-label">PLAYERS</div></div>
+    <div class="summary-item"><div class="summary-value">${avgScore.toFixed(2)}</div><div class="summary-label">AVG SCORE</div></div>
+    <div class="summary-item"><div class="summary-value">${balanceScore}%</div><div class="summary-label">BALANCE</div></div>
+  </div>
+  
+  <div class="section-title">📋 Team Rosters</div>
+  ${teams.map((t, i) => {
+    const avg = t.players.length ? (t.total / t.players.length).toFixed(2) : '0';
+    return `
+    <div class="team team-${i+1}">
+      <div class="team-header">
+        <span><strong>Team ${t.number}</strong> (${t.players.length} players)</span>
+        <span>Avg: <strong>${avg}</strong></span>
+      </div>
+      <div class="players">
+        ${t.players.map(p => `<div class="player"><div class="player-name">${escapeHtml(p.name)}</div><div class="player-score">${p.overall}</div></div>`).join('')}
+      </div>
+    </div>
+    `;
+  }).join('')}
+  
+  <div class="footer">© 2025 DaenAI | majid.mazouchi@gmail.com</div>
+</body>
+</html>`;
+      
       const win = window.open('', '_blank');
-      win.document.write(`<html><head><title>Team Report</title><style>body{font-family:sans-serif;padding:20px;}</style></head><body>${content}</body></html>`);
+      win.document.write(html);
       win.document.close();
-      setTimeout(() => win.print(), 500);
+      setTimeout(() => win.print(), 300);
     }
     
     function downloadReport() {
-      const content = document.getElementById('reportContent').innerHTML;
-      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Team Report</title><style>body{font-family:sans-serif;padding:20px;max-width:800px;margin:0 auto;}</style></head><body>${content}</body></html>`;
+      const totalPlayers = teams.reduce((s, t) => s + t.players.length, 0);
+      const avgScore = teams.reduce((s, t) => s + t.total, 0) / totalPlayers;
+      const variance = calcVariance();
+      const balanceScore = Math.max(0, 100 - variance * 50).toFixed(0);
+      
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Volleyball Team Report</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #f0fdf4 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+      color: #1e293b;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    .report-header {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7);
+      color: white;
+      text-align: center;
+      padding: 40px 20px;
+    }
+    .report-logo { font-size: 64px; margin-bottom: 16px; }
+    .report-title { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+    .report-subtitle { font-size: 16px; opacity: 0.9; }
+    .report-date { font-size: 14px; opacity: 0.8; margin-top: 12px; }
+    
+    .report-body { padding: 32px; }
+    
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .summary-card {
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      text-align: center;
+    }
+    .summary-value { font-size: 32px; font-weight: 800; }
+    .summary-label { font-size: 12px; text-transform: uppercase; opacity: 0.9; margin-top: 4px; }
+    
+    .section { margin-bottom: 32px; }
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 3px solid #8b5cf6;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .team-card {
+      background: #f8fafc;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .team-header {
+      padding: 16px 20px;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .team-1 .team-header { background: linear-gradient(135deg, #3b82f6, #06b6d4); }
+    .team-2 .team-header { background: linear-gradient(135deg, #8b5cf6, #ec4899); }
+    .team-3 .team-header { background: linear-gradient(135deg, #10b981, #14b8a6); }
+    .team-4 .team-header { background: linear-gradient(135deg, #f97316, #fbbf24); }
+    .team-name { font-size: 20px; font-weight: 800; }
+    .team-avg { font-size: 24px; font-weight: 800; }
+    .team-avg-label { font-size: 10px; text-transform: uppercase; opacity: 0.8; }
+    
+    .players-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+      padding: 16px;
+    }
+    .player-card {
+      background: white;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      border: 1px solid #e2e8f0;
+    }
+    .player-name { font-weight: 700; font-size: 14px; color: #1e293b; }
+    .player-role { font-size: 11px; color: #64748b; margin: 4px 0; }
+    .player-score { font-size: 18px; font-weight: 800; color: #8b5cf6; }
+    
+    .footer {
+      text-align: center;
+      padding: 24px;
+      background: #f8fafc;
+      color: #64748b;
+      font-size: 12px;
+      border-top: 1px solid #e2e8f0;
+    }
+    
+    @media print {
+      body { background: white; padding: 0; }
+      .container { box-shadow: none; }
+    }
+    @media (max-width: 600px) {
+      .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="report-header">
+      <div class="report-logo">🏐</div>
+      <div class="report-title">Volleyball Team Report</div>
+      <div class="report-subtitle">Professional Team Balancing Results</div>
+      <div class="report-date">${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+    </div>
+    
+    <div class="report-body">
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="summary-value">${teams.length}</div>
+          <div class="summary-label">Teams</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-value">${totalPlayers}</div>
+          <div class="summary-label">Players</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-value">${avgScore.toFixed(2)}</div>
+          <div class="summary-label">Avg Score</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-value">${balanceScore}%</div>
+          <div class="summary-label">Balance</div>
+        </div>
+      </div>
+      
+      <div class="section">
+        <div class="section-title">📋 Team Rosters</div>
+        ${teams.map((t, i) => {
+          const avg = t.players.length ? (t.total / t.players.length).toFixed(2) : '0';
+          return `
+          <div class="team-card team-${i+1}">
+            <div class="team-header">
+              <div>
+                <div class="team-name">Team ${t.number}</div>
+                <div>${t.players.length} players</div>
+              </div>
+              <div style="text-align: right;">
+                <div class="team-avg-label">Average</div>
+                <div class="team-avg">${avg}</div>
+              </div>
+            </div>
+            <div class="players-grid">
+              ${t.players.map(p => `
+                <div class="player-card">
+                  <div class="player-name">${escapeHtml(p.name)}</div>
+                  <div class="player-role">${p.role}</div>
+                  <div class="player-score">${p.overall}</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+    
+    <div class="footer">
+      <p>© 2025 DaenAI. All rights reserved.</p>
+      <p>Contact: majid.mazouchi@gmail.com</p>
+    </div>
+  </div>
+</body>
+</html>`;
+      
       const blob = new Blob([html], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
