@@ -219,6 +219,9 @@
       padding: 8px 10px; background: var(--slate-50); border-radius: 8px;
       cursor: grab; transition: all 0.2s; border: 2px solid transparent;
       user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      touch-action: none;
     }
     .roster-player:hover { background: var(--slate-100); border-color: var(--primary); }
     .roster-player.dragging { 
@@ -229,6 +232,18 @@
       cursor: grabbing;
     }
     .roster-player:active { cursor: grabbing; }
+    
+    /* Touch clone styling */
+    .touch-clone {
+      background: white !important;
+      border: 2px solid var(--primary) !important;
+      display: flex !important;
+      justify-content: space-between !important;
+      align-items: center !important;
+    }
+    .touch-clone .drag-handle { color: var(--primary); }
+    .touch-clone .roster-player-name { font-weight: 700; }
+    .touch-clone .roster-player-score { color: var(--primary); font-weight: 700; }
     .team-roster {
       display: flex; flex-direction: column; gap: 6px;
       min-height: 80px;
@@ -265,6 +280,23 @@
     .drag-info-icon { font-size: 32px; }
     .drag-info-text h4 { font-size: 14px; font-weight: 700; color: var(--slate-800); margin-bottom: 2px; }
     .drag-info-text p { font-size: 12px; color: var(--slate-600); }
+    
+    /* Mobile touch styles */
+    @media (hover: none) and (pointer: coarse) {
+      .roster-player {
+        padding: 12px 10px;
+      }
+      .drag-handle {
+        font-size: 18px;
+        padding: 4px 8px;
+        background: var(--slate-200);
+        border-radius: 4px;
+        margin-right: 4px;
+      }
+      .drag-info-text p::after {
+        content: " 👆";
+      }
+    }
     
     /* Distribution Strategies */
     .strategies-info {
@@ -637,7 +669,7 @@
           <div class="drag-info-icon">🎯</div>
           <div class="drag-info-text">
             <h4>Drag & Drop to Fine-Tune</h4>
-            <p>Drag players between teams to manually adjust the rosters. Look for the ⋮⋮ icon to grab players.</p>
+            <p>Drag players between teams to manually adjust the rosters. On mobile, tap and hold a player then drag to another team.</p>
           </div>
         </div>
         
@@ -1314,7 +1346,10 @@
           ? team.players.map(p => `
               <div class="roster-player" draggable="true" data-player-id="${p.id}"
                 ondragstart="handleDragStart(event, '${p.id}', ${idx})"
-                ondragend="handleDragEnd(event)">
+                ondragend="handleDragEnd(event)"
+                ontouchstart="handleTouchStart(event, '${p.id}', ${idx})"
+                ontouchmove="handleTouchMove(event)"
+                ontouchend="handleTouchEnd(event)">
                 <div class="roster-player-info">
                   <span class="drag-handle">⋮⋮</span>
                   <div>
@@ -1366,20 +1401,18 @@
       }, 100);
     }
     
-    // Drag & Drop Handlers
+    // Drag & Drop Handlers (Mouse)
     function handleDragStart(event, playerId, teamIdx) {
       draggedPlayer = playerId;
       draggedFromTeam = teamIdx;
       event.target.classList.add('dragging');
       event.dataTransfer.effectAllowed = 'move';
-      event.dataTransfer.setData('text/plain', playerId); // Required for Firefox
+      event.dataTransfer.setData('text/plain', playerId);
     }
     
     function handleDragEnd(event) {
       event.target.classList.remove('dragging');
-      // Remove all drag-over highlights
       document.querySelectorAll('.team-roster').forEach(el => el.classList.remove('drag-over'));
-      // Reset state after a small delay to ensure drop completes
       setTimeout(() => {
         draggedPlayer = null;
         draggedFromTeam = null;
@@ -1389,7 +1422,6 @@
     function handleDragOver(event) {
       event.preventDefault();
       event.dataTransfer.dropEffect = 'move';
-      // Highlight the drop zone
       const roster = event.currentTarget;
       if (roster && !roster.classList.contains('drag-over')) {
         roster.classList.add('drag-over');
@@ -1403,11 +1435,8 @@
     
     function handleDrop(event, targetTeamIdx) {
       event.preventDefault();
-      
-      // Reset drop zone highlight
       document.querySelectorAll('.team-roster').forEach(el => el.classList.remove('drag-over'));
       
-      // Get player ID from dataTransfer as backup
       const playerIdFromData = event.dataTransfer.getData('text/plain');
       const playerId = draggedPlayer || playerIdFromData;
       const fromTeam = draggedFromTeam;
@@ -1418,27 +1447,138 @@
         return;
       }
       
-      // Find and move player
-      const playerIdx = teams[fromTeam].players.findIndex(p => p.id === playerId);
-      if (playerIdx === -1) {
-        draggedPlayer = null;
-        draggedFromTeam = null;
-        return;
+      movePlayerToTeam(playerId, fromTeam, targetTeamIdx);
+    }
+    
+    // ==================== TOUCH SUPPORT FOR MOBILE ====================
+    
+    let touchDragElement = null;
+    let touchClone = null;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchCurrentRoster = null;
+    
+    function handleTouchStart(event, playerId, teamIdx) {
+      // Prevent default to avoid scrolling
+      event.preventDefault();
+      
+      const touch = event.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+      
+      draggedPlayer = playerId;
+      draggedFromTeam = teamIdx;
+      touchDragElement = event.currentTarget;
+      
+      // Visual feedback immediately
+      touchDragElement.style.opacity = '0.7';
+      touchDragElement.style.transform = 'scale(0.98)';
+    }
+    
+    function createTouchClone(touch, element) {
+      touchClone = element.cloneNode(true);
+      touchClone.classList.add('touch-clone');
+      touchClone.style.cssText = `
+        position: fixed;
+        top: ${touch.clientY - 25}px;
+        left: ${touch.clientX - 100}px;
+        width: 200px;
+        z-index: 10000;
+        pointer-events: none;
+        opacity: 0.9;
+        transform: scale(1.05);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        background: white;
+        border-radius: 8px;
+        padding: 8px 10px;
+      `;
+      document.body.appendChild(touchClone);
+    }
+    
+    function handleTouchMove(event) {
+      if (!draggedPlayer) return;
+      
+      // Prevent scrolling while dragging
+      event.preventDefault();
+      event.stopPropagation();
+      
+      const touch = event.touches[0];
+      
+      // Create clone on first move if not exists
+      if (!touchClone && touchDragElement) {
+        createTouchClone(touch, touchDragElement);
+        touchDragElement.classList.add('dragging');
+        if (navigator.vibrate) navigator.vibrate(50);
       }
       
-      const player = teams[fromTeam].players.splice(playerIdx, 1)[0];
-      teams[targetTeamIdx].players.push(player);
+      if (!touchClone) return;
+      
+      // Move the clone
+      touchClone.style.top = (touch.clientY - 25) + 'px';
+      touchClone.style.left = (touch.clientX - 100) + 'px';
+      
+      // Find roster under touch point
+      const elementsUnder = document.elementsFromPoint(touch.clientX, touch.clientY);
+      const rosterUnder = elementsUnder.find(el => el.classList.contains('team-roster'));
+      
+      // Update highlight
+      document.querySelectorAll('.team-roster').forEach(el => el.classList.remove('drag-over'));
+      if (rosterUnder) {
+        rosterUnder.classList.add('drag-over');
+        touchCurrentRoster = rosterUnder;
+      } else {
+        touchCurrentRoster = null;
+      }
+    }
+    
+    function handleTouchEnd(event) {
+      // Remove clone
+      if (touchClone) {
+        touchClone.remove();
+        touchClone = null;
+      }
+      
+      // Remove dragging class and reset styles
+      if (touchDragElement) {
+        touchDragElement.classList.remove('dragging');
+        touchDragElement.style.opacity = '';
+        touchDragElement.style.transform = '';
+        touchDragElement = null;
+      }
+      
+      // Remove all highlights
+      document.querySelectorAll('.team-roster').forEach(el => el.classList.remove('drag-over'));
+      
+      // Check if dropped on a roster
+      if (touchCurrentRoster && draggedPlayer !== null && draggedFromTeam !== null) {
+        const targetTeamIdx = parseInt(touchCurrentRoster.dataset.team);
+        if (!isNaN(targetTeamIdx) && targetTeamIdx !== draggedFromTeam) {
+          movePlayerToTeam(draggedPlayer, draggedFromTeam, targetTeamIdx);
+          // Haptic feedback
+          if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+        }
+      }
+      
+      // Reset state
+      draggedPlayer = null;
+      draggedFromTeam = null;
+      touchCurrentRoster = null;
+    }
+    
+    // Shared function to move player between teams
+    function movePlayerToTeam(playerId, fromTeamIdx, toTeamIdx) {
+      const playerIdx = teams[fromTeamIdx].players.findIndex(p => p.id === playerId);
+      if (playerIdx === -1) return;
+      
+      const player = teams[fromTeamIdx].players.splice(playerIdx, 1)[0];
+      teams[toTeamIdx].players.push(player);
       
       // Recalculate totals
       teams.forEach(t => t.total = t.players.reduce((s, p) => s + parseFloat(p.overall), 0));
       
-      // Reset drag state before re-render
-      draggedPlayer = null;
-      draggedFromTeam = null;
-      
       renderTeams();
       renderComparison();
-      showToast(`${player.name} moved to Team ${targetTeamIdx + 1}`, 'success');
+      showToast(`${player.name} moved to Team ${toTeamIdx + 1}`, 'success');
     }
     
     // Render Team Radar Chart
